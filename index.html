@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval';">
+	<meta name="format-detection" content="telephone=no">
+	<meta name="msapplication-tap-highlight" content="no">
+	<meta name="viewport" content="initial-scale=1, width=device-width, viewport-fit=cover">
+	<meta name="color-scheme" content="light dark">
+
+	<!-- 제이쿼리모바일, 제이쿼리, 폰갭 라이브러리 파일(다운로드 방식)  -->
+	<link rel="stylesheet" href="jquery.mobile/jquery.mobile-1.4.5.min.css"/>
+	<script src="jquery.mobile/jquery-1.11.1.min.js"></script>
+	<script src="jquery.mobile/jquery.mobile-1.4.5.min.js"></script>
+	<script src="cordova.js"></script>
+	<script src="upload&download/server.js"></script>
+	<!-- 사용자 정의 자바스크립트 파일  -->
+	<script src="myCamera.js"></script>
+	<script>
+	$(document).ready(function() {
+		initCordova();
+		$('#btnTakePhoto').click(function() {
+			takePhoto();
+		});
+		$('#btnGetPhoto').click(function() {
+			getPhoto();
+		});
+		$('#submitPhotoBtn').click(function() {
+            submitPhoto();
+        });
+	});
+   function initCordova() {
+ 		document.addEventListener('deviceready', onDeviceReady, true);
+	}
+   function onDeviceReady() {
+		navigator.notification.alert('장치 준비됨', null, '코르도바 API');
+	}
+</script>
+	<style>
+	#displayArea { display: block; width: 100%; }
+</style>
+	<title>Hello World</title>
+</head>
+<body>
+
+<div data-role="page" id="page1" data-position="fixed" >
+	<div data-role="header">
+		<h1>Cordova API</h1>
+	</div>
+	<div data-role="content">
+		<div class="ui-bar ui-bar-b">
+			<h3>날씨 및 공기 청정도 정보를 내포하는 모바일 사진 메타데이터 설계 및 구현 </h3>
+		</div><br/>
+		<img id="displayArea" src=""/>
+
+		<form>
+			<input type="file" name="uploadfile" multiple="multiple">
+		</form>
+		<hr />
+		<button id="uploadBtn">이미지 업로드</button>
+		<div>
+			<a href='#' id='downloadBtn'>이미지 다운로드</a>
+		</div>
+		<img />
+		<div>
+			<button id="ExifView">exif 불러오기</button>
+		</div>
+		<div id="metadataDisplay"></div>
+
+	</div>
+	<div data-role="footer" data-position="fixed">
+		<div data-role="navbar">
+			<ul>
+				<li><a id="btnTakePhoto">사진촬영하기</a></li>
+
+				<li><a id="btnGetPhoto">사진불러오기</a></li>
+			</ul>
+		</div>
+	</div>
+</div>
+<script>
+		let downloadpath;
+
+		$("#uploadBtn").on("click", function(e) {
+		    var formData = new FormData();
+		    var inputFile = $("input[name='uploadfile']");
+		    var files = inputFile[0].files;
+
+		    // 선택된 파일들을 FormData에 추가
+		    for (var i = 0; i < files.length; i++) {
+		        formData.append("image", files[i]);
+		    }
+
+		    // Ajax를 통해 파일을 서버로 업로드
+		    $.ajax({
+		        url: '/Use_Ex/upload',
+		        type: 'post',
+		        data: formData,
+		        processData: false, // 데이터 처리 방식을 설정하지 않음
+		        contentType: false, // 컨텐츠 타입을 설정하지 않음
+		        success: function(result) {
+		            alert("Uploaded"+result);
+		            downloadpath = result;
+		        }
+		    });
+		});
+			document.querySelector('#downloadBtn').addEventListener('click', () => {
+				const imagepath =downloadpath;
+				const requestData = {
+			              	imagePath: imagepath
+			            };
+				fetch('/Use_Ex/download',{
+						method: 'post',
+		             	headers: {
+		                'Content-Type': 'application/json'
+		                },
+		                body: JSON.stringify(requestData)
+						})
+				    .then(response => {
+				      if (!response.ok) {
+				        throw new Error('Network response was not ok');
+				      }
+				      return response.blob();
+				    })
+				    .then(blob => {
+				      const url = window.URL.createObjectURL(blob);
+				      const a = document.createElement('a');
+				      a.style.display = 'none';
+				      a.href = url;
+				      a.download = 'downloaded_image.jpg'; //저장될 파일명
+				      document.body.appendChild(a);
+				      a.click();
+				      window.URL.revokeObjectURL(url);
+				    })
+				    .catch(error => console.error('ERROR', error));
+				});
+
+			$("#ExifView").on("click", function(e) {
+				getExif();
+			});
+			function getExif() {
+				 const path = {path: downloadpath };
+				    $.ajax({
+				      type: "post",
+				      url: "/Use_Ex/Exif",
+				      accept: "application/json",
+				      contentType: "application/json; charset=utf-8",
+				      data: JSON.stringify(path),
+				      dataType: "json",
+				      success: function(data) {
+				        ob = data;
+				        console.log(ob);
+				        displayMetadata(data);
+				     },
+				     error: function(error) {
+				         console.log("Error: ", error);
+				     }
+				});
+			}
+			function displayMetadata(metadata) {
+			    var display = document.getElementById('metadataDisplay');
+			    display.innerHTML = ''; // 기존 내용을 초기화
+
+			    // 'Metadata' 키의 배열을 순회
+			    metadata.Metadata.forEach(function(item) {
+			        // 각 객체의 키-값 쌍을 순회하여 출력
+			        for (var key in item) {
+			            if (item.hasOwnProperty(key)) {
+			                var value = item[key];
+			                display.innerHTML += '<p><strong>' + key + ':</strong> ' + value + '</p>';
+			            }
+			        }
+			    });
+			}
+    	</script>
+</body>
+</html>
